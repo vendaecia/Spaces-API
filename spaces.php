@@ -254,45 +254,68 @@ class SpacesConnect {
        }
     }
 
-    /*
-      Upload a file.
-    */
-    function UploadFile($pathToFile, $access = "private", $save_as = "", $mime_type = "application/octet-stream") {
-        if(empty($save_as)) {
-          $save_as = $pathToFile;
-        }
-        if($access == "public") {
-          $access = "public-read";
-        }
-        $is_file = strlen($pathToFile) <= PHP_MAXPATHLEN && is_file($pathToFile);
-        if(!$is_file){
-          $file = $pathToFile;
-        }else{
-          $file = fopen($pathToFile, 'r+');
-        }
-        try {
-          $result = $this->client->putObject(array(
-              'Bucket'      => $this->space,
-              'Key'         => $save_as,
-              'Body'        => $file,
-              'ACL'         => $access,
-              'ContentType' => $mime_type
-          ));
+    /**
+     * Upload a file or create dir
+     *
+     * @param string $pathToFile path of file or content
+     * @param string $access private ou public
+     * @param string $save_as name and path to save file
+     * @param string $mime_type
+     *
+     * @throws SpacesAPIException
+     *
+     * @return array
+     */
+    public function UploadFile($pathToFile, $access = 'private', $save_as = '', $mime_type = 'application/octet-stream')
+    {
+      if (empty($save_as)) {
+        $save_as = $pathToFile;
+      }
 
-          $this->client->waitUntil('ObjectExists', array(
-              'Bucket' => $this->space,
-              'Key'    => $save_as
-          ));
+      if ($access == "public") {
+        $access = "public-read";
+      }
 
-          return $this->ObjReturn($result->toArray());
-         }
-         catch (\Exception $e) {
-          $this->HandleAWSException($e);
-         } finally {
-            if ($is_file) {
-                fclose($file);
-            }
-         }
+      $is_file = strlen($pathToFile) <= PHP_MAXPATHLEN && is_file($pathToFile);
+
+      if (!$is_file) {
+        $file = $pathToFile;
+      } else {
+        $file = fopen($pathToFile, 'r+');
+
+        if (func_num_args() < 4 && class_exists('finfo')) {
+          try {
+            $fileinfo = new finfo(FILEINFO_MIME_TYPE);
+
+            $mime_type = $fileinfo->file($pathToFile);
+          } catch (Exception $ex) {
+            //
+          }
+        }
+      }
+
+      try {
+        $result = $this->client->putObject(array(
+          'Bucket'      => $this->space,
+          'Key'         => $save_as,
+          'Body'        => $file,
+          'ACL'         => $access,
+          'ContentType' => $mime_type
+        ));
+
+        $this->client->waitUntil('ObjectExists', array(
+          'Bucket' => $this->space,
+          'Key'    => $save_as
+        ));
+
+        return $this->ObjReturn($result->toArray());
+      } catch (\Exception $e) {
+        $this->HandleAWSException($e);
+      } finally {
+        if ($is_file) {
+            fclose($file);
+        }
+      }
     }
 
     /*
